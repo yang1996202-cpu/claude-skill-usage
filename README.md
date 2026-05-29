@@ -92,12 +92,25 @@ skill-stats --data-dir ~/.claude   # 手动指定数据目录
 ## 注册为 Skill（可选）
 
 ```bash
-cp SKILL.md ~/.claude/skills/skill-stats/SKILL.md
+mkdir -p ~/.claude/skills/skill-usage
+cp SKILL.md ~/.claude/skills/skill-usage/SKILL.md
 ```
 
 之后可以：
-- `/skill-stats` 直接触发
+- `/skill-usage` 直接触发
 - 说"统计 skill"、"skill 排名"自动触发
+
+## 保持本机与 GitHub 一致
+
+如果你会在本机反复改这个仓库并来回 push/pull，推荐不要用 `cp`，改成软链，把本机安装点直接指向仓库真源：
+
+```bash
+mkdir -p ~/.claude/skills/skill-usage
+ln -sfn /Users/yang/projects/claude-skill-usage/SKILL.md ~/.claude/skills/skill-usage/SKILL.md
+ln -sfn /Users/yang/projects/claude-skill-usage/skill-stats ~/bin/skill-stats
+```
+
+这样你修改仓库里的 `SKILL.md` 或 `skill-stats` 后，本机会立即生效，不会再出现“GitHub 是一版，本机复制件又是另一版”。
 
 ## 数据源说明
 

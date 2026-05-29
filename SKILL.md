@@ -1,4 +1,4 @@
-# skill-stats
+# skill-usage
 
 ## 描述
 
@@ -6,7 +6,7 @@
 
 ## 触发方式
 
-- `/skill-stats`
+- `/skill-usage`
 - 说"统计 skill"、"skill 排名"、"哪些 skill 在吃灰"
 
 ## 功能
@@ -15,6 +15,14 @@
 - 合并历史 transcripts（`projects/*.jsonl`）和 Hook 实时日志（`logs/skill-usage.jsonl`）
 - 按消息数或会话数排名，找出真正在用的 skill
 - 支持 `--detail skill-name` 查看单个 skill 的使用详情
+
+## 命名约定
+
+- GitHub 仓库名：`claude-skill-usage`
+- Claude slash skill 名：`skill-usage`
+- 本地 CLI 名：`skill-stats`
+
+不要把 CLI 文件名 `skill-stats` 当成 slash skill 名。Claude 实际识别的是你安装到 `~/.claude/skills/skill-usage/` 目录下的 skill。
 
 ## 依赖
 
