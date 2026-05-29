@@ -1,10 +1,10 @@
 # Claude Code Skill Usage
 
-> 追踪 Claude Code Skills 真实使用频率。双数据源合并：解析历史 transcripts + Hook 实时埋点。
+> 追踪 Claude Code Skills 真实使用频率。双数据源合并：解析当前 Claude Code 会话 JSONL + Hook 实时埋点。
 
 ## 问题
 
-装了几十个 skills，不知道哪些在吃灰？Claude Code 没有内置的 skill 使用统计，而 transcripts 里的数据又不完整 —— 很多自动触发的 skills 不会被记录到 `attributionSkill` 字段。
+装了几十个 skills，不知道哪些在吃灰？Claude Code 没有内置的 skill 使用统计，而会话 JSONL 里的数据又不完整 —— 很多自动触发的 skills 不会被记录到 `attributionSkill` 字段。
 
 ## 方案
 
@@ -14,7 +14,28 @@
 Hook 实时埋点 (jsonl) ────────┘
 ```
 
-双管齐下，覆盖历史 + 实时，解决 transcripts 数据漏记问题。
+双管齐下，覆盖历史 + 实时，解决会话 JSONL 漏记问题。
+
+## 真源约定
+
+这套统计只认下面两个数据源：
+
+- `~/.claude/projects/**/*.jsonl`：当前 Claude Code 的主会话数据，脚本会读取其中的 `attributionSkill` 和显式 `Skill` tool_use。
+- `~/.claude/logs/skill-usage.jsonl`：你配置的 PostToolUse Hook 实时埋点。
+
+下面这些不是当前脚本的真源：
+
+- `~/.claude/history.jsonl`：更像 slash 命令/输入历史，只适合粗略看你手打过哪些命令，不适合当 skill 使用统计真源。
+- `~/.claude/transcripts/*.jsonl`：旧版遗留数据，可能有参考价值，但当前脚本默认不读它。
+
+如果你看到别的 agent 临时写 Python 去扫 `history.jsonl`，那是一条旁路快诊，不代表这个仓库的正式统计口径。
+
+## 官方文档
+
+- Hooks 官方文档：<https://code.claude.com/docs/en/hooks>
+- Settings 官方文档：<https://code.claude.com/docs/en/settings>
+
+官方文档里已经明确说明：Hook 事件会通过 stdin 传 JSON，公共字段里包含 `transcript_path`，而当前设置与 Hook 配置都以 `~/.claude/settings.json` 为正式用户级入口。
 
 ## 快速开始
 
@@ -119,7 +140,7 @@ ln -sfn /Users/yang/projects/claude-skill-usage/skill-stats ~/bin/skill-stats
 | Projects JSONL | `{data-dir}/projects/*.jsonl` | 历史数据 | 只记录 `attributionSkill`，自动触发 skills 可能漏记 |
 | Hook 日志 | `{data-dir}/logs/skill-usage.jsonl` | 实时数据 | 需重启 Claude Code 生效 |
 
-### 为什么 transcripts 数据不全？
+### 为什么会话 JSONL 数据不全？
 
 - `attributionSkill` 只标记 assistant 消息归属
 - 很多通过关键词自动触发的 skills 不写这个字段
