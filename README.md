@@ -87,14 +87,14 @@ skill-stats --data-dir ~/.claude   # 手动指定数据目录
 ## 输出示例
 
 ```
-#  │ Skill            │ 会话数 │ 消息数 │ Hook记录
+#  │ Skill            │ 消息数 │ 会话数 │ Hook记录
 ── │ ──────────────── │ ─── │ ─── │ ──────
-1  │ web-access       │ 12  │ 209 │ 5
-2  │ checkpoint       │ 11  │ 188 │ 3
-3  │ browse           │ 11  │ 841 │ 8
+1  │ browse           │ 841 │ 11  │ 0
+2  │ statusline       │ 343 │ 1   │ 0
+3  │ web-access       │ 209 │ 12  │ 0
 ...
 
-总计: 36 个 skill, 68 个会话, 2820 条消息, 16 次 hook 记录
+总计: 37 个 skill, 215 个总会话（71 个使用过 skill）, 2849 条消息, 2 次 hook 记录
 数据目录: /Users/yang/.claude
 ```
 
