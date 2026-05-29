@@ -26,7 +26,7 @@ Hook 实时埋点 (jsonl) ────────┘
 下面这些不是当前脚本的真源：
 
 - `~/.claude/history.jsonl`：更像 slash 命令/输入历史，只适合粗略看你手打过哪些命令，不适合当 skill 使用统计真源。
-- `~/.claude/transcripts/*.jsonl`：旧版遗留数据，可能有参考价值，但当前脚本默认不读它。
+- `~/.claude/transcripts/*.jsonl`：通常属于 OpenCode/旧旁路会话数据，不是当前 Claude Code 的主会话真源，当前脚本默认不读它。
 
 如果你看到别的 agent 临时写 Python 去扫 `history.jsonl`，那是一条旁路快诊，不代表这个仓库的正式统计口径。
 
@@ -150,7 +150,7 @@ ln -sfn /Users/yang/projects/claude-skill-usage/skill-stats ~/bin/skill-stats
 
 ### 数据分两份正常吗？
 
-正常。`~/.claude/transcripts/` 是旧版 Claude Code 数据，`~/.claude/projects/` 是当前 Claude Code 数据。只读 `projects` 即可。
+正常。`~/.claude/projects/` 才是当前 Claude Code 的主会话数据；`~/.claude/transcripts/` 通常是 OpenCode/旧旁路残留数据。这个仓库只把 `projects` 和 Hook 日志当正式统计真源，不把 `transcripts` 混进来。
 
 ## License
 

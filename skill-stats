@@ -20,6 +20,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+def looks_like_legacy_transcripts_dir(path):
+    """Best-effort detection for legacy transcript dumps that are not Claude Code projects."""
+    try:
+        if path.name == "transcripts":
+            return True
+        if path.is_dir() and any(path.glob("ses_*.jsonl")):
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def find_claude_dir(cli_override=None):
     """自动探测 Claude Code 数据目录。优先级：
     1. 命令行 --data-dir
@@ -31,6 +43,11 @@ def find_claude_dir(cli_override=None):
         if (p / "projects").exists():
             return p
         print(f"警告: 指定目录 {p} 下没有 projects/ 子目录", file=sys.stderr)
+        if looks_like_legacy_transcripts_dir(p):
+            print(
+                "提示: 这个目录看起来是 legacy transcripts（常见于 OpenCode/旧旁路数据），不是当前 Claude Code 的主数据目录。",
+                file=sys.stderr,
+            )
         return p  # 仍返回，让后续代码报更具体的错
 
     # 环境变量
@@ -62,6 +79,7 @@ def parse_projects(projects_dir, hook_log):
     skill_messages = Counter()
     skill_timestamps = defaultdict(list)
     skill_hook_calls = Counter()
+    all_sessions = set()
 
     if projects_dir.exists():
         for jsonl_file in projects_dir.rglob("*.jsonl"):
@@ -78,6 +96,7 @@ def parse_projects(projects_dir, hook_log):
 
                         session_id = obj.get("sessionId", "unknown")
                         timestamp = obj.get("timestamp", "")
+                        all_sessions.add(session_id)
 
                         # attributionSkill: marks which skill triggered this message
                         attr = obj.get("attributionSkill")
@@ -121,7 +140,7 @@ def parse_projects(projects_dir, hook_log):
         except Exception:
             pass
 
-    return skill_sessions, skill_messages, skill_timestamps, skill_hook_calls
+    return skill_sessions, skill_messages, skill_timestamps, skill_hook_calls, all_sessions
 
 
 def format_table(rows, headers):
@@ -194,7 +213,7 @@ def main():
     projects_dir = data_dir / "projects"
     hook_log = data_dir / "logs" / "skill-usage.jsonl"
 
-    skill_sessions, skill_messages, skill_timestamps, skill_hook_calls = parse_projects(
+    skill_sessions, skill_messages, skill_timestamps, skill_hook_calls, all_sessions = parse_projects(
         projects_dir, hook_log
     )
 
@@ -213,6 +232,8 @@ def main():
         print("  1. Claude Code 还没有生成 projects 数据（多聊几句就有了）", file=sys.stderr)
         print("  2. 数据目录不在默认位置，用 --data-dir 指定", file=sys.stderr)
         print("  3. Hook 未配置或尚未生效（需重启 Claude Code）", file=sys.stderr)
+        if looks_like_legacy_transcripts_dir(data_dir):
+            print("  4. 你指到的是 legacy transcripts 目录；这类数据常见于 OpenCode/旧旁路会话，不是本脚本的正式统计真源", file=sys.stderr)
         print("", file=sys.stderr)
         print("设置数据目录环境变量：export CLAUDE_DATA_DIR=/path/to/.claude", file=sys.stderr)
         return 1
@@ -270,7 +291,8 @@ def main():
     total_sessions = len(set().union(*skill_sessions.values())) if skill_sessions else 0
     total_messages = sum(skill_messages.values())
     total_hooks = sum(skill_hook_calls.values())
-    print(f"\n总计: {len(all_skills)} 个 skill, {total_sessions} 个会话, {total_messages} 条消息, {total_hooks} 次 hook 记录")
+    all_sessions_count = len(all_sessions)
+    print(f"\n总计: {len(all_skills)} 个 skill, {all_sessions_count} 个总会话（{total_sessions} 个使用过 skill）, {total_messages} 条消息, {total_hooks} 次 hook 记录")
     print(f"数据目录: {data_dir}")
     return 0
 

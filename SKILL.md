@@ -21,9 +21,10 @@
 - 真源 1：`~/.claude/projects/**/*.jsonl`
 - 真源 2：`~/.claude/logs/skill-usage.jsonl`
 - 非真源：`~/.claude/history.jsonl`
-- 旧数据参考：`~/.claude/transcripts/*.jsonl`
+- OpenCode/旧旁路数据：`~/.claude/transcripts/*.jsonl`
 
 不要临时写 Python 去扫 `history.jsonl` 代替正式统计，除非用户明确只想看 slash 命令历史。
+不要把 `~/.claude/transcripts/` 当成 Claude Code 主会话真源；它通常属于 OpenCode/旧旁路数据，本 skill 默认不读它。
 
 ## 命名约定
 
@@ -37,7 +38,7 @@
 
 - 默认先跑 `skill-stats` 看按消息数的使用量，再跑 `skill-stats --by-session` 看覆盖度。
 - 用户只问单个 skill 时，再补 `skill-stats --detail skill-name`。
-- 回答前先说明统计口径：正式统计只认 `projects/**/*.jsonl` 和 Hook 日志；`history.jsonl` 只在用户明确要看 slash 历史时才使用。
+- 回答前先说明统计口径：正式统计只认 `projects/**/*.jsonl` 和 Hook 日志；`history.jsonl` 只在用户明确要看 slash 历史时才使用；`transcripts` 明确标注为 OpenCode/旧旁路数据，不参与正式统计。
 - 不要临时写 Python 去扫 `history.jsonl` 代替正式统计。
 
 ## 输出格式
