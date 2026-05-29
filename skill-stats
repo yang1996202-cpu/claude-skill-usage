@@ -8,6 +8,7 @@ Usage:
     skill-stats --top 10               # 只显示前 10
     skill-stats --by-session           # 按会话去重统计
     skill-stats --detail web-access    # 单个 skill 详情
+    skill-stats --record-hook          # 读取 Claude Hook stdin 并写入日志
 """
 
 import argparse
@@ -15,6 +16,7 @@ import json
 import os
 import sys
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -142,15 +144,53 @@ def format_table(rows, headers):
     return "\n".join(lines)
 
 
+def record_hook_event(data_dir):
+    """Read a Claude Code hook payload from stdin and append a usage record."""
+    try:
+        payload = json.load(sys.stdin)
+    except json.JSONDecodeError as exc:
+        print(f"无效 Hook JSON: {exc}", file=sys.stderr)
+        return 1
+
+    tool_name = payload.get("tool_name")
+    if tool_name and tool_name != "Skill":
+        return 0
+
+    tool_input = payload.get("tool_input") or {}
+    if not isinstance(tool_input, dict):
+        return 0
+
+    skill_name = tool_input.get("skill")
+    if not skill_name:
+        return 0
+
+    logs_dir = data_dir / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir / "skill-usage.jsonl"
+    record = {
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "skill": skill_name,
+    }
+
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="统计 Claude Code skill 使用情况")
     parser.add_argument("--data-dir", help="手动指定 Claude Code 数据目录（默认自动探测）")
     parser.add_argument("--top", type=int, default=20, help="显示前 N 个")
     parser.add_argument("--by-session", action="store_true", help="按会话去重统计")
     parser.add_argument("--detail", help="查看某个 skill 的详细记录")
+    parser.add_argument("--record-hook", action="store_true", help="读取 Claude Hook stdin 并写入 skill-usage.jsonl")
     args = parser.parse_args()
 
     data_dir = find_claude_dir(args.data_dir)
+    if args.record_hook:
+        return record_hook_event(data_dir)
+
     projects_dir = data_dir / "projects"
     hook_log = data_dir / "logs" / "skill-usage.jsonl"
 

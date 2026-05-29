@@ -34,13 +34,22 @@ curl -fsSL https://raw.githubusercontent.com/yang1996202-cpu/claude-skill-usage/
   "hooks": {
     "PostToolUse": [
       {
-        "pattern": "*",
-        "command": "if [ \"$CLAUDE_TOOL_NAME\" = \"Skill\" ]; then skill_name=$(echo \"$CLAUDE_TOOL_INPUT\" | python3 -c 'import sys,json; print(json.load(sys.stdin).get(\"skill\",\"unknown\"))'); echo '{\"timestamp\":\"'\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"'\",\"skill\":\"'\"$skill_name\"'\"}' >> ~/.claude/logs/skill-usage.jsonl; fi"
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$HOME/bin/skill-stats\" --record-hook"
+          }
+        ]
       }
     ]
   }
 }
 ```
+
+如果你把 `skill-stats` 安装到了别的目录，把上面的 `$HOME/bin/skill-stats` 改成实际路径。
+
+注意：Claude Code 当前要求的 Hook 结构是 `matcher + hooks[]`。旧的 `pattern/command` 写法会直接触发 settings error，整份配置会被跳过。
 
 **重启 Claude Code 生效。**
 
