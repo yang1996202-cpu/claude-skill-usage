@@ -3,82 +3,114 @@
 skill-stats — 统计 Claude Code skill 使用情况
 
 Usage:
-    skill-stats              # 统计所有 projects 目录下的 skill 使用
-    skill-stats --top 10     # 只显示前 10
-    skill-stats --by-session # 按会话去重统计
-    skill-stats --detail skill-name  # 查看某个 skill 的详细使用记录
+    skill-stats                        # 自动探测目录并统计
+    skill-stats --data-dir ~/.claude   # 手动指定数据目录
+    skill-stats --top 10               # 只显示前 10
+    skill-stats --by-session           # 按会话去重统计
+    skill-stats --detail web-access    # 单个 skill 详情
 """
 
 import argparse
 import json
+import os
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime
 from pathlib import Path
 
-PROJECTS_DIR = Path.home() / ".claude" / "projects"
-HOOK_LOG = Path.home() / ".claude" / "logs" / "skill-usage.jsonl"
+
+def find_claude_dir(cli_override=None):
+    """自动探测 Claude Code 数据目录。优先级：
+    1. 命令行 --data-dir
+    2. 环境变量 CLAUDE_DATA_DIR
+    3. 常见路径扫描（找得到 projects/ 子目录的）
+    """
+    if cli_override:
+        p = Path(cli_override).expanduser().resolve()
+        if (p / "projects").exists():
+            return p
+        print(f"警告: 指定目录 {p} 下没有 projects/ 子目录", file=sys.stderr)
+        return p  # 仍返回，让后续代码报更具体的错
+
+    # 环境变量
+    env_dir = os.environ.get("CLAUDE_DATA_DIR")
+    if env_dir:
+        p = Path(env_dir).expanduser().resolve()
+        if (p / "projects").exists():
+            return p
+
+    # 常见路径扫描
+    candidates = [
+        Path.home() / ".claude",
+        Path.home() / ".config" / "claude",
+        Path.home() / "Library" / "Application Support" / "Claude Code",
+        Path.home() / ".local" / "share" / "claude",
+    ]
+
+    for cand in candidates:
+        if (cand / "projects").exists():
+            return cand
+
+    # 都没找到，返回默认路径（让后续报错提示更清楚）
+    return Path.home() / ".claude"
 
 
-def parse_projects():
-    """Parse all JSONL files in ~/.claude/projects/"""
-    skill_sessions = defaultdict(set)  # skill -> set of session IDs
-    skill_messages = Counter()         # skill -> message count
+def parse_projects(projects_dir, hook_log):
+    """Parse all JSONL files in projects_dir and hook_log."""
+    skill_sessions = defaultdict(set)
+    skill_messages = Counter()
     skill_timestamps = defaultdict(list)
-    skill_hook_calls = Counter()       # skill -> hook-recorded calls
+    skill_hook_calls = Counter()
 
-    if not PROJECTS_DIR.exists():
-        return skill_sessions, skill_messages, skill_timestamps, skill_hook_calls
+    if projects_dir.exists():
+        for jsonl_file in projects_dir.rglob("*.jsonl"):
+            try:
+                with open(jsonl_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            obj = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
 
-    for jsonl_file in PROJECTS_DIR.rglob("*.jsonl"):
-        try:
-            with open(jsonl_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        obj = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
+                        session_id = obj.get("sessionId", "unknown")
+                        timestamp = obj.get("timestamp", "")
 
-                    session_id = obj.get('sessionId', 'unknown')
-                    timestamp = obj.get('timestamp', '')
+                        # attributionSkill: marks which skill triggered this message
+                        attr = obj.get("attributionSkill")
+                        if attr:
+                            skill_sessions[attr].add(session_id)
+                            skill_messages[attr] += 1
+                            if timestamp:
+                                skill_timestamps[attr].append(timestamp)
 
-                    # attributionSkill: marks which skill triggered this message
-                    attr = obj.get('attributionSkill')
-                    if attr:
-                        skill_sessions[attr].add(session_id)
-                        skill_messages[attr] += 1
-                        if timestamp:
-                            skill_timestamps[attr].append(timestamp)
-
-                    # Also check explicit Skill tool_use
-                    if obj.get('type') == 'assistant' and 'message' in obj:
-                        content = obj.get('message', {}).get('content', [])
-                        for item in content:
-                            if isinstance(item, dict) and item.get('type') == 'tool_use':
-                                if item.get('name') == 'Skill':
-                                    skill_name = item.get('input', {}).get('skill', 'unknown')
-                                    skill_sessions[skill_name].add(session_id)
-                                    skill_messages[skill_name] += 1
-                                    if timestamp:
-                                        skill_timestamps[skill_name].append(timestamp)
-        except Exception:
-            pass
+                        # Also check explicit Skill tool_use
+                        if obj.get("type") == "assistant" and "message" in obj:
+                            content = obj.get("message", {}).get("content", [])
+                            for item in content:
+                                if isinstance(item, dict) and item.get("type") == "tool_use":
+                                    if item.get("name") == "Skill":
+                                        skill_name = item.get("input", {}).get("skill", "unknown")
+                                        skill_sessions[skill_name].add(session_id)
+                                        skill_messages[skill_name] += 1
+                                        if timestamp:
+                                            skill_timestamps[skill_name].append(timestamp)
+            except Exception:
+                pass
 
     # Parse hook log for real-time skill usage
-    if HOOK_LOG.exists():
+    if hook_log.exists():
         try:
-            with open(HOOK_LOG, 'r', encoding='utf-8') as f:
+            with open(hook_log, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line:
                         continue
                     try:
                         obj = json.loads(line)
-                        skill_name = obj.get('skill', 'unknown')
-                        timestamp = obj.get('timestamp', '')
+                        skill_name = obj.get("skill", "unknown")
+                        timestamp = obj.get("timestamp", "")
                         skill_hook_calls[skill_name] += 1
                         if timestamp:
                             skill_timestamps[skill_name].append(timestamp)
@@ -95,7 +127,6 @@ def format_table(rows, headers):
     if not rows:
         return "(no data)"
 
-    cols = len(headers)
     widths = [len(h) for h in headers]
     for row in rows:
         for i, cell in enumerate(row):
@@ -113,15 +144,37 @@ def format_table(rows, headers):
 
 def main():
     parser = argparse.ArgumentParser(description="统计 Claude Code skill 使用情况")
+    parser.add_argument("--data-dir", help="手动指定 Claude Code 数据目录（默认自动探测）")
     parser.add_argument("--top", type=int, default=20, help="显示前 N 个")
     parser.add_argument("--by-session", action="store_true", help="按会话去重统计")
     parser.add_argument("--detail", help="查看某个 skill 的详细记录")
     args = parser.parse_args()
 
-    skill_sessions, skill_messages, skill_timestamps, skill_hook_calls = parse_projects()
+    data_dir = find_claude_dir(args.data_dir)
+    projects_dir = data_dir / "projects"
+    hook_log = data_dir / "logs" / "skill-usage.jsonl"
+
+    skill_sessions, skill_messages, skill_timestamps, skill_hook_calls = parse_projects(
+        projects_dir, hook_log
+    )
 
     if not skill_sessions and not skill_hook_calls:
-        print("没有数据。检查 ~/.claude/projects/ 是否存在，或 hook 是否已生效。")
+        searched = [str(data_dir)]
+        if not args.data_dir:
+            searched = [
+                str(Path.home() / ".claude"),
+                str(Path.home() / ".config" / "claude"),
+                str(Path.home() / "Library" / "Application Support" / "Claude Code"),
+            ]
+        print("没有数据。", file=sys.stderr)
+        print(f"搜索过的目录: {', '.join(searched)}", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("可能原因：", file=sys.stderr)
+        print("  1. Claude Code 还没有生成 projects 数据（多聊几句就有了）", file=sys.stderr)
+        print("  2. 数据目录不在默认位置，用 --data-dir 指定", file=sys.stderr)
+        print("  3. Hook 未配置或尚未生效（需重启 Claude Code）", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("设置数据目录环境变量：export CLAUDE_DATA_DIR=/path/to/.claude", file=sys.stderr)
         return 1
 
     if args.detail:
@@ -148,25 +201,29 @@ def main():
     all_skills = set(skill_sessions.keys()) | set(skill_hook_calls.keys())
 
     if args.by_session:
-        # Sort by unique session count + hook calls
         items = sorted(
-            ((len(skill_sessions.get(name, set())), skill_messages.get(name, 0), skill_hook_calls.get(name, 0), name) for name in all_skills),
-            key=lambda x: -(x[0] + x[2])
+            (
+                (len(skill_sessions.get(name, set())), skill_messages.get(name, 0), skill_hook_calls.get(name, 0), name)
+                for name in all_skills
+            ),
+            key=lambda x: -(x[0] + x[2]),
         )
         rows = [
             (i + 1, name, sessions, msgs, hooks)
-            for i, (sessions, msgs, hooks, name) in enumerate(items[:args.top])
+            for i, (sessions, msgs, hooks, name) in enumerate(items[: args.top])
         ]
         print(format_table(rows, ["#", "Skill", "会话数", "消息数", "Hook记录"]))
     else:
-        # Sort by message count + hook calls
         items = sorted(
-            ((skill_messages.get(name, 0), len(skill_sessions.get(name, set())), skill_hook_calls.get(name, 0), name) for name in all_skills),
-            key=lambda x: -(x[0] + x[2])
+            (
+                (skill_messages.get(name, 0), len(skill_sessions.get(name, set())), skill_hook_calls.get(name, 0), name)
+                for name in all_skills
+            ),
+            key=lambda x: -(x[0] + x[2]),
         )
         rows = [
             (i + 1, name, msgs, sessions, hooks)
-            for i, (msgs, sessions, hooks, name) in enumerate(items[:args.top])
+            for i, (msgs, sessions, hooks, name) in enumerate(items[: args.top])
         ]
         print(format_table(rows, ["#", "Skill", "消息数", "会话数", "Hook记录"]))
 
@@ -174,7 +231,7 @@ def main():
     total_messages = sum(skill_messages.values())
     total_hooks = sum(skill_hook_calls.values())
     print(f"\n总计: {len(all_skills)} 个 skill, {total_sessions} 个会话, {total_messages} 条消息, {total_hooks} 次 hook 记录")
-    print(f"数据源: projects JSONL + hook 日志 ({HOOK_LOG})")
+    print(f"数据目录: {data_dir}")
     return 0
 
 

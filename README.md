@@ -1,6 +1,6 @@
 # Claude Code Skill Usage
 
-> 统计你的 Claude Code Skills 真实使用频率。双数据源合并：解析历史 transcripts + Hook 实时埋点。
+> 追踪 Claude Code Skills 真实使用频率。双数据源合并：解析历史 transcripts + Hook 实时埋点。
 
 ## 问题
 
@@ -51,6 +51,7 @@ skill-stats                        # 默认显示 Top 20
 skill-stats --by-session           # 按会话去重
 skill-stats --detail web-access    # 单个 skill 详情
 skill-stats --top 10               # 只看前 10
+skill-stats --data-dir ~/.claude   # 手动指定数据目录
 ```
 
 ## 输出示例
@@ -64,7 +65,20 @@ skill-stats --top 10               # 只看前 10
 ...
 
 总计: 36 个 skill, 68 个会话, 2820 条消息, 16 次 hook 记录
+数据目录: /Users/yang/.claude
 ```
+
+## 数据目录探测
+
+脚本会自动探测 Claude Code 数据目录，优先级如下：
+
+| 优先级 | 来源 | 说明 |
+|--------|------|------|
+| 1 | `--data-dir` 参数 | 手动指定 |
+| 2 | `CLAUDE_DATA_DIR` 环境变量 | `export CLAUDE_DATA_DIR=/path/to/.claude` |
+| 3 | 自动扫描 | `~/.claude`、`~/.config/claude`、`~/Library/Application Support/Claude Code` 等 |
+
+如果找不到数据，脚本会列出搜索过的路径并给出排查建议。
 
 ## 注册为 Skill（可选）
 
@@ -80,8 +94,8 @@ cp SKILL.md ~/.claude/skills/skill-stats/SKILL.md
 
 | 数据源 | 路径 | 覆盖范围 | 局限 |
 |--------|------|----------|------|
-| Projects JSONL | `~/.claude/projects/*.jsonl` | 历史数据 | 只记录 `attributionSkill`，自动触发 skills 可能漏记 |
-| Hook 日志 | `~/.claude/logs/skill-usage.jsonl` | 实时数据 | 需重启 Claude Code 生效 |
+| Projects JSONL | `{data-dir}/projects/*.jsonl` | 历史数据 | 只记录 `attributionSkill`，自动触发 skills 可能漏记 |
+| Hook 日志 | `{data-dir}/logs/skill-usage.jsonl` | 实时数据 | 需重启 Claude Code 生效 |
 
 ### 为什么 transcripts 数据不全？
 
