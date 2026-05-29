@@ -116,7 +116,7 @@ cp SKILL.md ~/.claude/skills/skill-stats/SKILL.md
 
 ### 数据分两份正常吗？
 
-正常。`~/.claude/transcripts/` 是旧版 OpenCode 数据，`~/.claude/projects/` 是当前 Claude Code 数据。只读 `projects` 即可。
+正常。`~/.claude/transcripts/` 是旧版 Claude Code 数据，`~/.claude/projects/` 是当前 Claude Code 数据。只读 `projects` 即可。
 
 ## License
 
